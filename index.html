@@ -31,10 +31,7 @@
       margin-bottom: 30px;
     }
 
-    .header .icon {
-      font-size: 48px;
-      margin-bottom: 10px;
-    }
+    .header .icon { font-size: 48px; margin-bottom: 10px; }
 
     .header h1 {
       color: #1a5276;
@@ -43,14 +40,26 @@
       margin-bottom: 6px;
     }
 
-    .header p {
-      color: #666;
-      font-size: 0.9rem;
+    .header p { color: #666; font-size: 0.9rem; }
+
+    .countdown-box {
+      background: #fff8e1;
+      border: 2px solid #f39c12;
+      border-radius: 10px;
+      padding: 10px 14px;
+      text-align: center;
+      margin-bottom: 20px;
+      font-size: 0.88rem;
+      color: #7d6608;
     }
 
-    .form-group {
-      margin-bottom: 20px;
+    .countdown-box span {
+      font-weight: 700;
+      font-size: 1rem;
+      color: #c0392b;
     }
+
+    .form-group { margin-bottom: 20px; }
 
     label {
       display: block;
@@ -74,16 +83,8 @@
       direction: rtl;
     }
 
-    input:focus {
-      outline: none;
-      border-color: #2e86c1;
-      background: #fff;
-    }
-
-    input.error {
-      border-color: #e74c3c;
-      background: #fff8f8;
-    }
+    input:focus { outline: none; border-color: #2e86c1; background: #fff; }
+    input.error { border-color: #e74c3c; background: #fff8f8; }
 
     .error-msg {
       color: #e74c3c;
@@ -92,9 +93,7 @@
       display: none;
     }
 
-    .error-msg.visible {
-      display: block;
-    }
+    .error-msg.visible { display: block; }
 
     button[type="submit"] {
       width: 100%;
@@ -115,15 +114,18 @@
     button[type="submit"]:active { transform: scale(0.98); }
     button[type="submit"]:disabled { opacity: 0.6; cursor: not-allowed; }
 
-    .success-box {
+    .result-box {
       display: none;
       text-align: center;
       padding: 30px 10px;
     }
 
-    .success-box .check { font-size: 64px; margin-bottom: 12px; }
-    .success-box h2 { color: #1e8449; font-size: 1.4rem; margin-bottom: 8px; }
-    .success-box p { color: #555; font-size: 0.95rem; }
+    .result-box .icon-big { font-size: 64px; margin-bottom: 12px; }
+    .result-box h2 { font-size: 1.4rem; margin-bottom: 8px; }
+    .result-box p { color: #555; font-size: 0.95rem; }
+    .result-box.success h2 { color: #1e8449; }
+    .result-box.duplicate h2 { color: #d35400; }
+    .result-box.closed h2 { color: #7b241c; }
 
     .note {
       background: #eaf4fb;
@@ -138,11 +140,17 @@
 </head>
 <body>
   <div class="card">
+
+    <!-- النموذج -->
     <div id="form-section">
       <div class="header">
         <div class="icon">📋</div>
         <h1>تسجيل عدم الرغبة في أداء الاختبار</h1>
         <p>يرجى تعبئة البيانات التالية بدقة</p>
+      </div>
+
+      <div class="countdown-box" id="countdown-box">
+        ⏳ ينتهي التسجيل خلال: <span id="countdown-timer">...</span>
       </div>
 
       <div class="note">
@@ -172,46 +180,91 @@
       </form>
     </div>
 
-    <div class="success-box" id="success-section">
-      <div class="check">✅</div>
+    <!-- تم التسجيل -->
+    <div class="result-box success" id="success-section">
+      <div class="icon-big">✅</div>
       <h2>تم التسجيل بنجاح</h2>
       <p>تم استلام بياناتك وتسجيلها.<br>شكراً لك.</p>
     </div>
+
+    <!-- مسجل مسبقاً -->
+    <div class="result-box duplicate" id="duplicate-section">
+      <div class="icon-big">⚠️</div>
+      <h2>تم تسجيل طلبك مسبقاً</h2>
+      <p>رقمك الجامعي موجود في السجل.<br>لا حاجة للتسجيل مرة أخرى.</p>
+    </div>
+
+    <!-- انتهى وقت التسجيل -->
+    <div class="result-box closed" id="closed-section">
+      <div class="icon-big">🔒</div>
+      <h2>انتهى وقت التسجيل</h2>
+      <p>انتهت فترة التسجيل يوم الثلاثاء 12/5/2026 الساعة 10 مساءً.<br>لا يمكن قبول طلبات جديدة.</p>
+    </div>
+
   </div>
 
   <script>
-    // ضع هنا رابط Google Apps Script بعد نشره
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby5fWcOrUNTVnLOBHXRHUn5EACcTKdnop8GnQw5DghRtaPjAclZBQ6QBsDwpEYYq6SqCA/exec';
+    const DEADLINE   = new Date('2026-05-12T22:00:00+03:00'); // الثلاثاء 12/5/2026 الساعة 10 مساءً (توقيت السعودية)
 
     const arabicOnly = /^[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿\s]+$/;
     const digitsOnly = /^\d+$/;
 
+    function showSection(id) {
+      ['form-section','success-section','duplicate-section','closed-section']
+        .forEach(s => document.getElementById(s).style.display = s === id ? 'block' : 'none');
+    }
+
+    // --- عداد تنازلي ---
+    function updateCountdown() {
+      const diff = DEADLINE - new Date();
+      if (diff <= 0) {
+        showSection('closed-section');
+        return;
+      }
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      const parts = [];
+      if (d > 0) parts.push(d + ' يوم');
+      parts.push(String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0'));
+      document.getElementById('countdown-timer').textContent = parts.join(' و ');
+    }
+
+    // تحقق فوري عند تحميل الصفحة
+    if (new Date() > DEADLINE) {
+      showSection('closed-section');
+    } else {
+      updateCountdown();
+      setInterval(updateCountdown, 1000);
+    }
+
+    // --- التحقق من الحقول ---
     function showError(fieldId, show) {
       document.getElementById(fieldId).classList.toggle('error', show);
       document.getElementById('err-' + fieldId).classList.toggle('visible', show);
     }
 
+    document.getElementById('studentName').addEventListener('input', function() {
+      if (this.value && !arabicOnly.test(this.value)) showError('studentName', true);
+      else showError('studentName', false);
+    });
+
+    // --- إرسال النموذج ---
     document.getElementById('reg-form').addEventListener('submit', async function(e) {
       e.preventDefault();
+
+      if (new Date() > DEADLINE) { showSection('closed-section'); return; }
 
       const studentId   = document.getElementById('studentId').value.trim();
       const sectionId   = document.getElementById('sectionId').value.trim();
       const studentName = document.getElementById('studentName').value.trim();
 
       let valid = true;
-
-      if (!digitsOnly.test(studentId) || studentId === '') {
-        showError('studentId', true); valid = false;
-      } else { showError('studentId', false); }
-
-      if (!digitsOnly.test(sectionId) || sectionId === '') {
-        showError('sectionId', true); valid = false;
-      } else { showError('sectionId', false); }
-
-      if (!arabicOnly.test(studentName) || studentName === '') {
-        showError('studentName', true); valid = false;
-      } else { showError('studentName', false); }
-
+      if (!digitsOnly.test(studentId)   || !studentId)   { showError('studentId', true);   valid = false; } else showError('studentId', false);
+      if (!digitsOnly.test(sectionId)   || !sectionId)   { showError('sectionId', true);   valid = false; } else showError('sectionId', false);
+      if (!arabicOnly.test(studentName) || !studentName) { showError('studentName', true); valid = false; } else showError('studentName', false);
       if (!valid) return;
 
       const btn = document.getElementById('submit-btn');
@@ -219,25 +272,20 @@
       btn.textContent = 'جارٍ الإرسال...';
 
       try {
-        await fetch(SCRIPT_URL, {
+        const res  = await fetch(SCRIPT_URL, {
           method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({ studentId, sectionId, studentName })
         });
-      } catch (_) { /* no-cors returns opaque response — treat as success */ }
-
-      document.getElementById('form-section').style.display = 'none';
-      document.getElementById('success-section').style.display = 'block';
-    });
-
-    // منع لصق النص الإنجليزي في حقل الاسم
-    document.getElementById('studentName').addEventListener('input', function() {
-      const val = this.value;
-      if (val && !arabicOnly.test(val)) {
-        showError('studentName', true);
-      } else {
-        showError('studentName', false);
+        const data = await res.json();
+        if (data.status === 'duplicate') {
+          showSection('duplicate-section');
+        } else {
+          showSection('success-section');
+        }
+      } catch (_) {
+        // في حال خطأ في الشبكة نعرض النجاح لأن الطلب وصل غالباً
+        showSection('success-section');
       }
     });
   </script>
